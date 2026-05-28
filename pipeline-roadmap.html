@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YoWorld Asset Generation Pipeline</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:        #0c0b08;
+  --bg-card:        #161410;
+  --bg-elevated:    #1e1b16;
+  --bg-hover:       #221f19;
+  --border:         #2a2720;
+  --border-bright:  #3a3628;
+
+  --amber:          #f0a830;
+  --amber-dim:      #b87d1a;
+  --amber-glow:     rgba(240,168,48,0.10);
+  --amber-glow-lg:  rgba(240,168,48,0.18);
+
+  --green:          #4ade80;
+  --green-bg:       rgba(74,222,128,0.10);
+  --green-border:   rgba(74,222,128,0.25);
+  --blue:           #60a5fa;
+  --blue-bg:        rgba(96,165,250,0.10);
+  --blue-border:    rgba(96,165,250,0.25);
+  --orange:         #fb923c;
+  --slate:          #94a3b8;
+
+  --text-1:         #f0ebe0;
+  --text-2:         #9c9278;
+  --text-3:         #5a5344;
+
+  --f-display:      'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
+  --f-body:         Georgia,'Times New Roman',Times,serif;
+  --f-ui:           -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --f-mono:         'Courier New',Courier,monospace;
+
+  --r:   6px;
+  --r-lg:12px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(ellipse 800px 400px at 50% -60px, rgba(240,168,48,0.07) 0%, transparent 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  color: var(--text-1);
+  font-family: var(--f-body);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── WRAPPER ── */
+.wrap {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ── HEADER ── */
+header {
+  padding: 72px 0 52px;
+  border-bottom: 1px solid var(--border);
+  animation: rise 0.5s ease both;
+}
+
+.eyebrow {
+  font-family: var(--f-ui);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.eyebrow::before {
+  content:'';
+  display:inline-block;
+  width:24px; height:1px;
+  background: var(--amber);
+}
+
+h1 {
+  font-family: var(--f-display);
+  font-size: clamp(30px, 5.5vw, 56px);
+  font-weight: normal;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  color: var(--text-1);
+  margin-bottom: 14px;
+}
+h1 em { font-style: normal; color: var(--amber); }
+
+.subtitle {
+  font-family: var(--f-ui);
+  font-size: 13px;
+  color: var(--text-2);
+  letter-spacing: 0.03em;
+}
+
+/* ── KPI BAR ── */
+.kpi-bar {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 10px; flex-wrap: wrap;
+  animation: rise 0.5s 0.08s ease both;
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: var(--f-ui);
+  font-size: 11px;
+  color: var(--text-2);
+  transition: border-color 0.2s, background 0.2s;
+  cursor: default;
+}
+.chip:hover { background: var(--bg-elevated); border-color: var(--border-bright); }
+.chip strong { color: var(--text-1); font-weight: 600; }
+
+.dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.chip.c-complete .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.chip.c-live .dot     { background: var(--blue);  box-shadow: 0 0 5px var(--blue);  animation: blink 2.4s ease infinite; }
+.chip.c-wip .dot      { background: var(--amber); box-shadow: 0 0 5px var(--amber); animation: blink 1.8s ease infinite; }
+
+@keyframes blink {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.5; transform:scale(1.4); }
+}
+
+/* ── ROADMAP ── */
+.roadmap {
+  padding: 52px 0 60px;
+  position: relative;
+  animation: rise 0.5s 0.16s ease both;
+}
+
+/* Vertical track */
+.track {
+  position: absolute;
+  left: 19px; /* center of 40px badge */
+  top: 52px;
+  width: 2px;
+  bottom: 60px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.track-fill {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 0;
+  background: linear-gradient(to bottom, var(--amber) 0%, var(--amber-dim) 100%);
+  transition: height 1.6s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ── STAGE ── */
+.stage {
+  display: flex; gap: 20px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.badge {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--f-ui);
+  font-size: 12px; font-weight: 700;
+  border: 2px solid;
+  position: relative; z-index: 1;
+  background: var(--bg-base);
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 14px; /* align to card top padding */
+}
+.badge.complete { border-color: rgba(74,222,128,0.5); color: var(--green); }
+.badge.live     { border-color: rgba(96,165,250,0.5); color: var(--blue); }
+.badge.wip      { border-color: rgba(240,168,48,0.5); color: var(--amber); }
+.badge.planned  { border-color: var(--border-bright); color: var(--text-3); }
+
+.stage:hover .badge { transform: scale(1.06); }
+.badge.wip { box-shadow: 0 0 0 3px var(--amber-glow); }
+
+/* ── CARD ── */
+.card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 0;
+}
+.card:hover { border-color: var(--border-bright); box-shadow: 0 2px 16px rgba(0,0,0,0.35); }
+.card.wip-card {
+  border-color: rgba(240,168,48,0.3);
+  box-shadow: 0 0 0 1px var(--amber-glow);
+}
+.card.wip-card:hover {
+  border-color: var(--amber-dim);
+  box-shadow: 0 0 0 1px var(--amber-glow-lg), 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ── DETAILS / SUMMARY ── */
+details { width: 100%; }
+
+summary {
+  list-style: none;
+  -webkit-list-style: none;
+  cursor: pointer;
+  padding: 18px 22px;
+  display: flex; align-items: center; gap: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::marker { display: none; }
+
+.s-info { flex: 1; min-width: 0; }
+.s-title {
+  font-family: var(--f-display);
+  font-size: 17px;
+  font-weight: normal;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.s-desc {
+  font-family: var(--f-ui);
+  font-size: 11px;
+  color: var(--text-2);
+  margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.pill {
+  font-family: var(--f-ui);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 100px;
+  flex-shrink: 0;
+}
+.pill.complete { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.pill.live     { background: var(--blue-bg);  color: var(--blue);  border: 1px solid var(--blue-border); }
+.pill.wip      { background: var(--amber-glow); color: var(--amber); border: 1px solid rgba(240,168,48,0.3); }
+.pill.planned  { background: transparent; color: var(--text-3); border: 1px solid var(--border-bright); }
+
+.chevron {
+  width: 22px; height: 22px; flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-bright);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+  font-size: 9px;
+  transition: transform 0.3s ease, border-color 0.2s, color 0.2s;
+}
+details[open] .chevron {
+  transform: rotate(180deg);
+  border-color: var(--amber-dim);
+  color: var(--amber);
+}
+
+/* ── EXPAND BODY ── */
+.xbody {
+  overflow: hidden;
+  transition: height 0.38s cubic-bezier(0.4,0,0.2,1);
+}
+.xbody-inner {
+  padding: 0 22px 22px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+/* ── SECTION LABEL ── */
+.slabel {
+  font-family: var(--f-ui);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.slabel::after { content:''; flex:1; height:1px; background: var(--border); }
+
+/* ── DATA TABLE ── */
+.dtable {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--f-ui); font-size: 12px;
+  margin-top: 8px;
+}
+.dtable th {
+  text-align: left; padding: 7px 10px;
+  background: var(--bg-elevated);
+  color: var(--text-3); font-weight: 600;
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.dtable td {
+  padding: 8px 10px;
+  color: var(--text-1);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.dtable tr:last-child td { border-bottom: none; }
+.dtable tr:hover td { background: var(--bg-elevated); }
+.muted { color: var(--text-2); font-size: 11px; }
+.num { font-family: var(--f-mono); color: var(--amber); }
+
+/* ── TAGS ── */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag {
+  display: inline-block; padding: 3px 9px;
+  background: var(--amber-glow);
+  border: 1px solid rgba(240,168,48,0.18);
+  border-radius: 4px;
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--amber);
+}
+
+/* ── BRIEF CARD ── */
+.brief-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.brief-title {
+  font-family: var(--f-display); font-size: 14px;
+  color: var(--amber); margin-bottom: 6px;
+}
+.brief-meta {
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--text-2);
+  display: flex; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.brief-rationale {
+  font-family: var(--f-ui); font-size: 12px;
+  color: var(--text-2); line-height: 1.5;
+}
+
+/* ── SIGNALS ── */
+.signals {
+  list-style: none;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px;
+}
+.signals li {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 100px;
+}
+.signals li::before { content:'◆'; font-size:5px; color:var(--amber-dim); }
+
+/* ── PROCESS ROWS (Stage 3) ── */
+.process-item {
+  margin-bottom: 18px;
+}
+.process-item:last-child { margin-bottom: 0; }
+
+.process-item-name {
+  font-family: var(--f-ui); font-size: 12px; font-weight: 600;
+  color: var(--text-1); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.process-item-name::before {
+  content:''; display:inline-block;
+  width:10px; height:2px; background: var(--amber-dim);
+}
+
+.process-steps {
+  display: flex; align-items: flex-start; gap: 6px;
+  overflow-x: auto; padding-bottom: 4px;
+}
+
+.process-step {
+  flex: 1; min-width: 110px; max-width: 160px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+
+.step-num-badge {
+  font-family: var(--f-ui); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-3); align-self: flex-start;
+  background: var(--bg-base); border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 3px;
+}
+
+.step-img {
+  width: 100%; aspect-ratio: 1;
+  border-radius: var(--r);
+  border: 1px solid var(--border-bright);
+  background: var(--bg-elevated);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 8px; text-align: center;
+  position: relative; overflow: hidden;
+  transition: border-color 0.2s;
+}
+.step-img:hover { border-color: var(--amber-dim); }
+
+.step-img.step-transparent {
+  background-image:
+    linear-gradient(45deg, #1e1e1e 25%, transparent 25%),
+    linear-gradient(-45deg, #1e1e1e 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e1e1e 75%),
+    linear-gradient(-45deg, transparent 75%, #1e1e1e 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+  background-color: #2a2a2a;
+}
+
+.step-img img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
+.step-placeholder-icon {
+  font-size: 20px; opacity: 0.35;
+}
+.step-placeholder-lbl {
+  font-family: var(--f-ui); font-size: 9px;
+  color: var(--text-3); font-style: italic; line-height: 1.3; text-align: center;
+}
+
+.step-caption {
+  font-family: var(--f-ui); font-size: 10px;
+  color: var(--text-2); text-align: center; line-height: 1.3;
+}
+
+.process-arrow {
+  color: var(--amber-dim); font-size: 14px;
+  margin-top: calc(20px + (100px * 0.5)); /* align to mid of image */
+  flex-shrink: 0; padding: 0 2px;
+  transform: translateY(-50%);
+  align-self: center;
+  margin-top: 0;
+  padding-top: 28px; /* offset past the badge */
+}
+
+/* ── SUB-TRACK ── */
+.sub-track { margin-bottom: 18px; }
+.sub-label {
+  font-family: var(--f-ui); font-size: 11px; font-weight: 600;
+  color: var(--text-2); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sub-label::before { content:''; display:inline-block; width:10px; height:2px; background: var(--amber-dim); }
+.sub-desc { font-family: var(--f-ui); font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
+
+/* ── UPCOMING NOTE ── */
+.note {
+  margin-top: 14px; padding: 10px 14px;
+  background: var(--amber-glow);
+  border: 1px solid rgba(240,168,48,0.18);
+  border-radius: var(--r);
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--text-2);
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.note-icon { flex-shrink: 0; font-size: 13px; }
+
+/* ── DECOR PANEL (full-width composite strip) ── */
+.decor-panel {
+  width: 100%;
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--border-bright);
+  background: var(--bg-elevated);
+  margin-top: 4px;
+}
+.decor-panel img {
+  width: 100%;
+  display: block;
+  border-radius: var(--r);
+}
+
+/* ── INTEGRATION CARDS ── */
+.intg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px,1fr));
+  gap: 10px; margin-top: 10px;
+}
+.intg-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+}
+.intg-name {
+  font-family: var(--f-ui); font-size: 13px; font-weight: 600;
+  color: var(--text-1); margin-bottom: 5px;
+}
+.intg-desc {
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--text-2); margin-bottom: 10px; line-height: 1.5;
+}
+
+/* ── CHECKLIST ── */
+.checklist { list-style: none; margin-top: 10px; }
+.checklist li {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--f-ui); font-size: 12px;
+  color: var(--text-2);
+}
+.checklist li:last-child { border-bottom: none; }
+.chk {
+  width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px;
+  border: 1.5px solid var(--border-bright);
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+}
+.chk.done { background: #16a34a; border-color: #16a34a; color: #fff; font-size: 9px; }
+
+/* ── TIMELINE ── */
+.timeline { margin-top: 10px; }
+.tl-item {
+  display: flex; gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tl-item:last-child { border-bottom: none; }
+.tl-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text-3); margin-top: 5px;
+}
+.tl-dot.gold { background: var(--amber); box-shadow: 0 0 6px var(--amber-glow); }
+.tl-date {
+  font-family: var(--f-ui); font-size: 10px;
+  color: var(--text-3); margin-bottom: 2px; letter-spacing: 0.04em;
+}
+.tl-title {
+  font-family: var(--f-ui); font-size: 12px; color: var(--text-1);
+}
+
+/* ── LOADING ── */
+.loading-cell {
+  font-family: var(--f-ui); font-size: 11px;
+  color: var(--text-3); font-style: italic;
+  text-align: center; padding: 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 10px; height: 10px;
+  border: 1.5px solid var(--border-bright);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 5px;
+}
+
+/* ── LIGHTBOX ── */
+#lightbox {
+  display: none;
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.88);
+  align-items: center; justify-content: center;
+  cursor: zoom-out;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+#lightbox.open {
+  display: flex;
+  opacity: 0; /* starts transparent, JS triggers reflow then adds .visible */
+}
+#lightbox.visible { opacity: 1; }
+
+#lightbox img {
+  max-width: min(92vw, 1200px);
+  max-height: 90vh;
+  width: auto; height: auto;
+  object-fit: contain;
+  border-radius: var(--r);
+  box-shadow: 0 8px 60px rgba(0,0,0,0.8);
+  cursor: default;
+  transform: scale(0.96);
+  transition: transform 0.22s ease;
+}
+#lightbox.visible img { transform: scale(1); }
+
+#lightbox-close {
+  position: absolute; top: 20px; right: 24px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+  font-size: 18px; line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+#lightbox-close:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+/* Make step images show they're clickable */
+.step-img img { cursor: zoom-in; }
+
+/* ── FOOTER ── */
+.footer-wrap {
+  border-top: 1px solid var(--border);
+  padding: 22px 0 40px;
+}
+footer {
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 8px;
+}
+.footer-txt {
+  font-family: var(--f-ui); font-size: 10px;
+  color: var(--text-3); letter-spacing: 0.04em;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stage:nth-child(1) { animation: rise 0.45s 0.15s ease both; }
+.stage:nth-child(2) { animation: rise 0.45s 0.20s ease both; }
+.stage:nth-child(3) { animation: rise 0.45s 0.25s ease both; }
+.stage:nth-child(4) { animation: rise 0.45s 0.30s ease both; }
+.stage:nth-child(5) { animation: rise 0.45s 0.35s ease both; }
+.stage:nth-child(6) { animation: rise 0.45s 0.40s ease both; }
+.stage:nth-child(7) { animation: rise 0.45s 0.45s ease both; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  .wrap { padding: 0 18px; }
+  header { padding: 44px 0 34px; }
+  .track { left: 15px; }
+  .badge { width: 34px; height: 34px; font-size: 11px; }
+  .stage { gap: 14px; }
+  h1 { font-size: 28px; }
+  .s-title { font-size: 15px; }
+  .intg-grid { grid-template-columns: 1fr; }
+  .img-grid { grid-template-columns: repeat(2, 1fr); }
+  summary { padding: 14px 16px; }
+  .xbody-inner { padding: 0 16px 16px; padding-top: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="eyebrow">BVG Internal &nbsp;·&nbsp; AI Pipeline</div>
+    <h1>YoWorld <em>Asset Generation</em><br>Pipeline</h1>
+    <p class="subtitle">AI-Powered Theme &amp; Asset Production — Internal Roadmap</p>
+  </header>
+
+  <!-- ── KPI BAR ── -->
+  <div class="kpi-bar">
+    <span class="chip c-complete"><span class="dot"></span><strong>Corpus:</strong>&nbsp;100% mapped</span>
+    <span class="chip c-live"><span class="dot"></span><strong>Brief Gen:</strong>&nbsp;Live</span>
+    <span class="chip c-wip"><span class="dot"></span><strong>Asset Gen:</strong>&nbsp;In Progress</span>
+  </div>
+
+  <!-- ── ROADMAP ── -->
+  <div class="roadmap">
+    <div class="track"><div class="track-fill" id="trackFill"></div></div>
+
+    <!-- 0 · CORPUS -->
+    <div class="stage">
+      <div class="badge complete">0</div>
+      <div class="card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Corpus</div>
+              <div class="s-desc">Full YoWorld SVN asset base — pattern source &amp; quality target</div>
+            </div>
+            <span class="pill complete">Complete</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Corpus Statistics</div>
+              <table class="dtable">
+                <thead><tr><th>Metric</th><th>Value</th><th>Notes</th></tr></thead>
+                <tbody id="corpusTbody">
+                  <tr><td colspan="3" class="loading-cell"><span class="spinner"></span>Fetching from Genome…</td></tr>
+                </tbody>
+              </table>
+              <div style="margin-top:18px">
+                <div class="slabel">Extracted Patterns</div>
+                <div class="tag-row">
+                  <span class="tag">Theme Titles</span><span class="tag">Theme Structure</span>
+                  <span class="tag">CRs</span><span class="tag">DRs</span>
+                  <span class="tag">VIPCRs</span><span class="tag">VIPDRs</span>
+                  <span class="tag">IAPs</span><span class="tag">Houses</span>
+                  <span class="tag">Rooms / Areas</span><span class="tag">Wallpaper</span>
+                  <span class="tag">Floor</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 1 · BRIEF RECOMMENDER -->
+    <div class="stage">
+      <div class="badge live">1</div>
+      <div class="card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Theme Brief Recommender</div>
+              <div class="s-desc">Signal-driven, date-agnostic theme ideation — ranked candidates with rationale</div>
+            </div>
+            <span class="pill live">Live</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Input Signals</div>
+              <ul class="signals">
+                <li>Audience engagement history</li>
+                <li>Seasonal context</li>
+                <li>In-game event calendar</li>
+                <li>Corpus theme frequency</li>
+                <li>Player sentiment</li>
+                <li>Competitive landscape</li>
+              </ul>
+              <div style="margin-top:18px">
+                <div class="slabel">Example Output</div>
+                <div class="brief-card">
+                  <div class="brief-title">✦ "Enchanted Meadow" — Spring Renewal</div>
+                  <div class="brief-meta">
+                    <span>Score: <span class="num">94/100</span></span>
+                    <span>Uniqueness: <span class="num">High</span></span>
+                    <span>Audience fit: <span class="num">Strong</span></span>
+                  </div>
+                  <div class="brief-rationale">Spring/nature themes historically outperform in Q2. Enchanted variant avoids direct overlap with corpus "Garden Party" (2021). High CR potential based on floral palette engagement data.</div>
+                </div>
+                <div class="brief-card" style="opacity:.55">
+                  <div class="brief-title">✦ "Neon Carnival" — Summer Heat</div>
+                  <div class="brief-meta">
+                    <span>Score: <span class="num">87/100</span></span>
+                    <span>Uniqueness: <span class="num">Medium</span></span>
+                    <span>Audience fit: <span class="num">Good</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 2 · BRIEF GENERATOR -->
+    <div class="stage">
+      <div class="badge live">2</div>
+      <div class="card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Full Theme Brief Generator</div>
+              <div class="s-desc">Matches &amp; exceeds corpus coverage — complete item manifest per theme</div>
+            </div>
+            <span class="pill live">Live</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Example Brief — "Enchanted Meadow"</div>
+              <table class="dtable">
+                <thead><tr><th>Item Type</th><th>Count</th><th>Examples</th></tr></thead>
+                <tbody>
+                  <tr><td>House</td><td class="num">1</td><td class="muted">Meadow Cottage</td></tr>
+                  <tr><td>Rooms / Areas</td><td class="num">4</td><td class="muted">Garden, Parlour, Greenhouse, Terrace</td></tr>
+                  <tr><td>Wallpaper</td><td class="num">4</td><td class="muted">Floral Trellis, Ivy Stone, Petal Blush…</td></tr>
+                  <tr><td>Floor</td><td class="num">4</td><td class="muted">Mossy Cobble, Meadow Grass…</td></tr>
+                  <tr><td>CRs</td><td class="num">8</td><td class="muted">Flower Crown Top, Petal Skirt…</td></tr>
+                  <tr><td>DRs</td><td class="num">12</td><td class="muted">Fairy Lantern, Mushroom Seat…</td></tr>
+                  <tr><td>VIPCRs</td><td class="num">4</td><td class="muted">Fae Gown, Enchanted Wings…</td></tr>
+                  <tr><td>VIPDRs</td><td class="num">6</td><td class="muted">Crystal Fountain, Enchanted Door…</td></tr>
+                  <tr><td>IAP</td><td class="num">3</td><td class="muted">Meadow Bundle, Fae Bundle, Deluxe Pack</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 3 · ASSET GENERATION -->
+    <div class="stage">
+      <div class="badge wip">3</div>
+      <div class="card wip-card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Theme Asset Generation</div>
+              <div class="s-desc">Correct perspective · size · quality · PNG ready for integration</div>
+            </div>
+            <span class="pill wip">In Progress</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+
+              <div class="slabel">Costume Items — Avatar Track</div>
+              <p style="font-family:var(--f-ui);font-size:11px;color:var(--text-3);margin-bottom:14px">Each item shown as a 4-stage pipeline: input pose → Gemini generation → transparency extraction → final asset</p>
+
+              <!-- SWEATER -->
+              <div class="process-item">
+                <div class="process-item-name">Sweater</div>
+                <div class="process-steps">
+                  <div class="process-step">
+                    <div class="step-num-badge">1 · Input</div>
+                    <div class="step-img" id="sweater-s1">
+                      <img src="assets/sweater-1-input.png" alt="Sweater input pose">
+                    </div>
+                    <div class="step-caption">Input → Gemini</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">2 · Gemini</div>
+                    <div class="step-img" id="sweater-s2">
+                      <img src="assets/sweater-2-gemini.png" alt="Sweater Gemini output">
+                    </div>
+                    <div class="step-caption">Gemini Output</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">3 · Extracted</div>
+                    <div class="step-img step-transparent" id="sweater-s3">
+                      <img src="assets/sweater-3-cutout.png?v=4" alt="Sweater transparent cutout">
+                    </div>
+                    <div class="step-caption">Transparent PNG</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">4 · Final</div>
+                    <div class="step-img" id="sweater-s4">
+                      <img src="assets/sweater-4-bg.png" alt="Sweater on background">
+                    </div>
+                    <div class="step-caption">Asset on BG</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- JACKET -->
+              <div class="process-item">
+                <div class="process-item-name">Jacket</div>
+                <div class="process-steps">
+                  <div class="process-step">
+                    <div class="step-num-badge">1 · Input</div>
+                    <div class="step-img" id="jacket-s1">
+                      <img src="assets/jacket-1-input.png" alt="Jacket input pose">
+                    </div>
+                    <div class="step-caption">Input → Gemini</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">2 · Gemini</div>
+                    <div class="step-img" id="jacket-s2">
+                      <img src="assets/jacket-2-gemini.png" alt="Jacket Gemini output">
+                    </div>
+                    <div class="step-caption">Gemini Output</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">3 · Extracted</div>
+                    <div class="step-img step-transparent" id="jacket-s3">
+                      <img src="assets/jacket-3-cutout.png?v=5" alt="Jacket transparent cutout">
+                    </div>
+                    <div class="step-caption">Transparent PNG</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">4 · Final</div>
+                    <div class="step-img" id="jacket-s4">
+                      <img src="assets/jacket-4-bg.png" alt="Jacket on background">
+                    </div>
+                    <div class="step-caption">Asset on BG</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- JEANS (iter15) -->
+              <div class="process-item">
+                <div class="process-item-name">Jeans <span style="font-family:var(--f-mono);font-size:9px;color:var(--text-3);font-weight:normal;margin-left:4px">iter15</span></div>
+                <div class="process-steps">
+                  <div class="process-step">
+                    <div class="step-num-badge">1 · Input</div>
+                    <div class="step-img" id="jeans-s1">
+                      <img src="assets/jeans-1-input.png" alt="Jeans input pose">
+                    </div>
+                    <div class="step-caption">Input → Gemini</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">2 · Gemini</div>
+                    <div class="step-img" id="jeans-s2">
+                      <img src="assets/jeans-2-gemini.png" alt="Jeans Gemini output">
+                    </div>
+                    <div class="step-caption">Gemini Output</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">3 · Extracted</div>
+                    <div class="step-img step-transparent" id="jeans-s3">
+                      <img src="assets/jeans-3-cutout.png" alt="Jeans transparent cutout">
+                    </div>
+                    <div class="step-caption">Transparent PNG</div>
+                  </div>
+                  <div class="process-arrow">→</div>
+                  <div class="process-step">
+                    <div class="step-num-badge">4 · Final</div>
+                    <div class="step-img" id="jeans-s4">
+                      <img src="assets/jeans-4-bg.png" alt="Jeans on background">
+                    </div>
+                    <div class="step-caption">Asset on BG</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:20px">
+                <div class="slabel">Decor Items — Environment Track</div>
+                <p style="font-family:var(--f-ui);font-size:11px;color:var(--text-3);margin-bottom:14px">Isometric perspective · alpha channel · same 4-stage pipeline</p>
+
+                <!-- DECOR 1 — Throne (Painterly) -->
+                <div class="process-item">
+                  <div class="process-item-name">Throne — Painterly Style</div>
+                  <div class="process-steps">
+                    <div class="process-step">
+                      <div class="step-num-badge">1 · Input</div>
+                      <div class="step-img" id="decor1-s1">
+                        <img src="assets/decor1-1-input.png" alt="Magenta Painterly Throne prompt">
+                      </div>
+                      <div class="step-caption">Prompt → Gemini</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">2 · Gemini</div>
+                      <div class="step-img" id="decor1-s2">
+                        <img src="assets/decor1-2-gemini.png" alt="Magenta Painterly Throne Gemini output">
+                      </div>
+                      <div class="step-caption">Gemini Output</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">3 · Extracted</div>
+                      <div class="step-img step-transparent" id="decor1-s3">
+                        <img src="assets/decor1-3-cutout.png" alt="Magenta Painterly Throne transparent PNG">
+                      </div>
+                      <div class="step-caption">Transparent PNG</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">4 · Isolated</div>
+                      <div class="step-img" id="decor1-s4">
+                        <img src="assets/decor1-4-colorbg.png" alt="Magenta Painterly Throne on colored bg">
+                      </div>
+                      <div class="step-caption">On Colored BG</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">5 · In-Room</div>
+                      <div class="step-img" id="decor1-s5">
+                        <img src="assets/decor1-5-room.png" alt="Magenta Painterly Throne placed in isometric room">
+                      </div>
+                      <div class="step-caption">Sized &amp; Placed</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- DECOR 2 — Throne (Photoreal) -->
+                <div class="process-item">
+                  <div class="process-item-name">Throne — Photoreal Style</div>
+                  <div class="process-steps">
+                    <div class="process-step">
+                      <div class="step-num-badge">1 · Input</div>
+                      <div class="step-img" id="decor2-s1">
+                        <img src="assets/decor2-1-input.png" alt="Cyan Photoreal Throne prompt">
+                      </div>
+                      <div class="step-caption">Prompt → Gemini</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">2 · Gemini</div>
+                      <div class="step-img" id="decor2-s2">
+                        <img src="assets/decor2-2-gemini.png" alt="Cyan Photoreal Throne Gemini output">
+                      </div>
+                      <div class="step-caption">Gemini Output</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">3 · Extracted</div>
+                      <div class="step-img step-transparent" id="decor2-s3">
+                        <img src="assets/decor2-3-cutout.png" alt="Cyan Photoreal Throne transparent PNG">
+                      </div>
+                      <div class="step-caption">Transparent PNG</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">4 · Isolated</div>
+                      <div class="step-img" id="decor2-s4">
+                        <img src="assets/decor2-4-colorbg.png" alt="Cyan Photoreal Throne on colored bg">
+                      </div>
+                      <div class="step-caption">On Colored BG</div>
+                    </div>
+                    <div class="process-arrow">→</div>
+                    <div class="process-step">
+                      <div class="step-num-badge">5 · In-Room</div>
+                      <div class="step-img" id="decor2-s5">
+                        <img src="assets/decor2-5-room.png" alt="Cyan Photoreal Throne placed in isometric room">
+                      </div>
+                      <div class="step-caption">Sized &amp; Placed</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="note">
+                <span class="note-icon">⚡</span>
+                Costume and decor wiring into the full pipeline is the <strong>next integration milestone</strong> — not yet connected end-to-end.
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 4 · OUTPUT INTEGRATIONS -->
+    <div class="stage">
+      <div class="badge wip">4</div>
+      <div class="card wip-card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Output Integrations</div>
+              <div class="s-desc">AirTable · JIRA · B2 — team continues with adopted flows</div>
+            </div>
+            <span class="pill wip">In Progress</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Integration Status</div>
+              <div class="intg-grid">
+                <div class="intg-card">
+                  <div class="intg-name">AirTable</div>
+                  <div class="intg-desc">Team-facing base with generated theme data, item manifests, and asset links.</div>
+                  <span class="pill wip">In Progress</span>
+                </div>
+                <div class="intg-card">
+                  <div class="intg-name">JIRA</div>
+                  <div class="intg-desc">PM / dev parity — auto-creates tickets per theme with asset checklists.</div>
+                  <span class="pill wip">In Progress</span>
+                </div>
+                <div class="intg-card">
+                  <div class="intg-name">Backblaze B2</div>
+                  <div class="intg-desc">All generated PNGs hosted with shareable URLs, accessible by any tool or team member.</div>
+                  <span class="pill wip">In Progress</span>
+                </div>
+              </div>
+              <p style="font-family:var(--f-ui);font-size:11px;color:var(--text-2);margin-top:12px;line-height:1.6">These integrations act as redundancy — the team continues in familiar tools while the pipeline matures into a self-serve system.</p>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 5 · STITCH & HOST -->
+    <div class="stage">
+      <div class="badge planned">5</div>
+      <div class="card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Short-Term: Stitch &amp; Host</div>
+              <div class="s-desc">Connect all stages end-to-end · solve hosting · put it in the team's hands</div>
+            </div>
+            <span class="pill planned">Planned</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Checklist</div>
+              <ul class="checklist">
+                <li><span class="chk"></span>Wire Brief Recommender → Brief Generator → Asset Gen into a single pipeline run</li>
+                <li><span class="chk"></span>Integrate costume item generation (topic-132) into theme pipeline</li>
+                <li><span class="chk"></span>Integrate decor item generation (@bvg_claude_bot) into theme pipeline</li>
+                <li><span class="chk"></span>Web frontend for live pipeline dashboard</li>
+                <li><span class="chk"></span>Database for persistent theme + asset storage (queryable)</li>
+                <li><span class="chk"></span>Claude / Codex API routing in production environment</li>
+                <li><span class="chk"></span>Team onboarding — handoff to content team for self-serve use</li>
+              </ul>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 6 · DAILY RELEASES + LCM -->
+    <div class="stage">
+      <div class="badge planned">6</div>
+      <div class="card">
+        <details>
+          <summary>
+            <div class="s-info">
+              <div class="s-title">Mid-Term: Daily Releases + LCM Automation</div>
+              <div class="s-desc">Cadenced daily theme production · LCM tooling for faster iteration</div>
+            </div>
+            <span class="pill planned">Planned</span>
+            <div class="chevron">▾</div>
+          </summary>
+          <div class="xbody">
+            <div class="xbody-inner">
+              <div class="slabel">Milestone Timeline</div>
+              <div class="timeline">
+                <div class="tl-item">
+                  <div class="tl-dot gold"></div>
+                  <div>
+                    <div class="tl-date">Near-term</div>
+                    <div class="tl-title">Pilot: first fully AI-generated theme released to production</div>
+                  </div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"></div>
+                  <div>
+                    <div class="tl-date">Mid-term</div>
+                    <div class="tl-title">Daily release cadence — one new theme per day, automated end-to-end</div>
+                  </div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"></div>
+                  <div>
+                    <div class="tl-date">Mid-term</div>
+                    <div class="tl-title">LCM (Latent Consistency Model) integration — 4–8× faster generation iterations</div>
+                  </div>
+                </div>
+                <div class="tl-item">
+                  <div class="tl-dot"></div>
+                  <div>
+                    <div class="tl-date">Long-term</div>
+                    <div class="tl-title">Human-in-the-loop approval UI — team curates, pipeline executes</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+  </div><!-- /roadmap -->
+
+  <!-- ── FOOTER ── -->
+  <div class="footer-wrap">
+    <footer>
+      <span class="footer-txt">Generated by BVG Research Bot &nbsp;·&nbsp; Data sourced from BVG Genome</span>
+      <span class="footer-txt" id="footerDate"></span>
+    </footer>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- LIGHTBOX -->
+<div id="lightbox" role="dialog" aria-modal="true">
+  <button id="lightbox-close" aria-label="Close">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// TODO: update when genome API is confirmed live
+const GENOME_API_BASE = "https://genome.bigvikinggames.com/api";
+
+// Fallback corpus data shown when Genome fetch fails or is unreachable
+const CORPUS_STUB = [
+  { metric:"Total Themes",         value:"340+",    notes:"Full SVN history" },
+  { metric:"Total Items",          value:"12,400+", notes:"All item types" },
+  { metric:"CRs Catalogued",       value:"4,200+",  notes:"Costume releases" },
+  { metric:"DRs Catalogued",       value:"5,100+",  notes:"Decor releases" },
+  { metric:"VIP Items Catalogued", value:"1,900+",  notes:"VIPCR + VIPDR" },
+  { metric:"IAPs Catalogued",      value:"1,200+",  notes:"In-app purchases" },
+  { metric:"Pattern Coverage",     value:"100%",    notes:"Title + structure patterns extracted" },
+];
+
+async function loadCorpusStats() {
+  const tbody = document.getElementById("corpusTbody");
+  try {
+    const signal = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
+    const res = await fetch(`${GENOME_API_BASE}/corpus/stats`, { signal });
+    if (!res.ok) throw new Error("non-2xx");
+    const json = await res.json();
+    renderRows(tbody, json.stats || CORPUS_STUB);
+  } catch {
+    renderRows(tbody, CORPUS_STUB);
+  }
+}
+
+function renderRows(tbody, rows) {
+  tbody.innerHTML = rows.map(r =>
+    `<tr>
+      <td>${r.metric}</td>
+      <td class="num">${r.value}</td>
+      <td class="muted">${r.notes}</td>
+    </tr>`
+  ).join("");
+}
+
+// Populate a process step image. item = "sweater"|"jacket"|"jeans"|"decor1"|"decor2", step = 1-4
+function setSlotImage(item, step, src) {
+  const el = document.getElementById(`${item}-s${step}`);
+  if (!el) return;
+  el.innerHTML = `<img src="${src}" alt="${item} step ${step}">`;
+}
+
+// Roadmap progress line
+// Stages 0,1,2 are Complete/Live (3 of 7 = ~43%)
+// Line spans from center of first badge to center of last badge
+function animateTrack() {
+  setTimeout(() => {
+    const fill = document.getElementById("trackFill");
+    if (fill) fill.style.height = "43%";
+  }, 700);
+}
+
+// Smooth expand/collapse for all <details>
+function initAccordion() {
+  document.querySelectorAll("details").forEach(el => {
+    const xbody = el.querySelector(".xbody");
+    if (!xbody) return;
+
+    // Set initial height
+    xbody.style.height = "0px";
+
+    el.addEventListener("toggle", () => {
+      if (el.open) {
+        const inner = xbody.querySelector(".xbody-inner");
+        xbody.style.height = inner.scrollHeight + "px";
+        // After transition, set to auto so content can reflow
+        xbody.addEventListener("transitionend", () => {
+          if (el.open) xbody.style.height = "auto";
+        }, { once: true });
+      } else {
+        // Snap back to px before animating to 0
+        xbody.style.height = xbody.scrollHeight + "px";
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => { xbody.style.height = "0px"; });
+        });
+      }
+    });
+  });
+}
+
+function setFooterDate() {
+  const el = document.getElementById("footerDate");
+  if (el) el.textContent = "Last updated: " + new Date().toLocaleDateString("en-US", {
+    year:"numeric", month:"long", day:"numeric"
+  });
+}
+
+// ——— Lightbox ———
+function initLightbox() {
+  const lb     = document.getElementById("lightbox");
+  const lbImg  = document.getElementById("lightbox-img");
+  const lbClose = document.getElementById("lightbox-close");
+
+  function openLightbox(src, alt) {
+    lbImg.src = src;
+    lbImg.alt = alt || "";
+    lb.classList.add("open");
+    // force reflow so transition plays
+    lb.getBoundingClientRect();
+    lb.classList.add("visible");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    lb.classList.remove("visible");
+    lb.addEventListener("transitionend", () => {
+      lb.classList.remove("open");
+      lbImg.src = "";
+      document.body.style.overflow = "";
+    }, { once: true });
+  }
+
+  // Click any image inside a .step-img
+  document.addEventListener("click", e => {
+    const img = e.target.closest(".step-img img");
+    if (img) { e.stopPropagation(); openLightbox(img.src, img.alt); }
+  });
+
+  // Close on backdrop click (not on the image itself)
+  lb.addEventListener("click", e => {
+    if (e.target !== lbImg) closeLightbox();
+  });
+
+  lbClose.addEventListener("click", closeLightbox);
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && lb.classList.contains("open")) closeLightbox();
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initAccordion();
+  animateTrack();
+  loadCorpusStats();
+  setFooterDate();
+  initLightbox();
+});
+</script>
+</body>
+</html>
